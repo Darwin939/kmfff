@@ -3,6 +3,7 @@ package usecase
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"proxy_service/src/domain"
 )
@@ -17,16 +18,31 @@ func NewProxyUseCase(proxyRepository domain.ProxyRepository) *ProxyUseCase {
 	}
 }
 
+func getResponseBodyLength(resp *http.Response) int64 {
+	if resp.ContentLength != -1 {
+		return resp.ContentLength
+	}
+
+	bodyContent, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0
+	}
+
+	contentLength := int64(len(bodyContent))
+	return contentLength
+}
+
 func (uc *ProxyUseCase) Proxy(request *domain.ProxyRequest) (domain.ProxyResponse, error) {
 	requestID, err := uc.recipeRepository.SaveRequest(request)
 	resp, err := makeProxyRequest(*request)
+	length := getResponseBodyLength(resp)
 
 	defer resp.Body.Close()
 	responsePayload := domain.ProxyResponse{
 		ID:      requestID,
 		Status:  resp.StatusCode,
 		Headers: resp.Header,
-		Length:  resp.ContentLength,
+		Length:  length,
 	}
 	if err != nil {
 		return responsePayload, err
